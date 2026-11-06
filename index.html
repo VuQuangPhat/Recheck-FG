@@ -140,6 +140,53 @@ dialog .fg{margin-bottom:16px}
   header.top,.filters,.pager,.btn,.dr-bg,.drawer{display:none!important}
   body{background:#fff}main{padding:0}.card,.kpi,.tw,.ring-card{box-shadow:none;border:1px solid #ddd}
 }
+
+/* ===== Bố cục v2: Tổng quan, bộ lọc điện thoại, thanh công cụ ===== */
+[hidden]{display:none!important}
+.kpis4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.minis{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 2px}
+.mini{background:var(--surface);border-radius:999px;padding:6px 14px;font-size:.82rem;color:var(--muted);box-shadow:var(--shadow)}
+.mini b{color:var(--ink);font-variant-numeric:tabular-nums;margin-left:2px}
+.mini.amber{background:var(--amber-bg);color:var(--amber)}.mini.amber b{color:var(--amber)}
+.mini.red{background:var(--red-bg);color:var(--red)}.mini.red b{color:var(--red)}
+.sb{display:flex;height:10px;border-radius:6px;overflow:hidden;background:#e5e5ea;min-width:140px}
+.sb i{display:block;height:100%}
+.sb .d,u.d{background:var(--green)}.sb .g,u.g{background:#5ac8fa}.sb .t,u.t{background:#ff9f0a}.sb .c,u.c{background:#c7c7cc}
+.sb .n,u.n{background:repeating-linear-gradient(45deg,#d1d1d6 0 2px,#f2f2f7 2px 4px)}
+.sbn,.lgd{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.76rem;color:var(--muted);margin-top:4px}
+.lgd{margin:0 0 8px}
+.sbn span,.lgd span{display:inline-flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums}
+u.d,u.g,u.t,u.c,u.n{display:inline-block;width:9px;height:9px;border-radius:50%;text-decoration:none}
+.sbn .od{color:var(--red);font-weight:600}
+td.sbc,th.sbc{min-width:200px;width:34%}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 4px;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}
+.chips::-webkit-scrollbar{display:none}
+.dnchip{flex:none;border:0;background:rgba(120,120,128,.12);color:var(--ink);padding:7px 14px;border-radius:999px;font-size:.84rem;font-weight:500;cursor:pointer;white-space:nowrap}
+.dnchip.on{background:var(--accent);color:#fff;font-weight:600}
+.fl-toggle .badge{display:inline-block;margin-left:6px;min-width:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:#fff;font-size:.72rem;line-height:18px;text-align:center}
+.only-m{display:none!important}
+.fl-more{display:contents}
+.dm{position:relative}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;background:#fff;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column;gap:2px;min-width:200px}
+.menu .btn{background:transparent;text-align:left;justify-content:flex-start;white-space:nowrap}
+.menu .btn:hover{background:var(--gray-bg)}
+.modeseg button{white-space:nowrap}
+#btn-sh::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#aeaeb2;margin-right:7px;vertical-align:1px}
+#btn-sh[data-st=ok]::before{background:#34c759}#btn-sh[data-st=busy]::before{background:#ff9f0a}#btn-sh[data-st=bad]::before{background:#ff3b30}
+#rc-status{flex:1 1 100%;font-size:.8rem;color:var(--muted);padding:0 0 2px;overflow-wrap:anywhere}
+#rc-status.bad{color:var(--red);font-weight:500}
+@media (max-width:1000px){.kpis4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){
+  .only-d{display:none!important}
+  .only-m{display:inline-flex!important}
+  .chips.only-m{display:flex!important;width:100%}
+  .filters{gap:8px}
+  .fl-more{display:none;flex-direction:column;gap:8px;width:100%}
+  .fl-more.open{display:flex}
+  .fl-more .fl,.fl-more .btn{width:100%}
+  .kpi .n{font-size:1.9rem}
+  .menu{right:auto;left:0}
+}
 </style>
 </head>
 <body>
@@ -148,10 +195,14 @@ dialog .fg{margin-bottom:16px}
   <nav class="tabs" id="tabs"></nav>
   <div class="tools">
     <span class="saved" id="saved"></span>
-    <button class="btn" id="btn-mode" title="Chuyển giữa chế độ Kiểm kê và Đầy đủ (kiểm kê + rà soát pháp lý)"></button>
-    <button class="btn" id="btn-export" title="Tải bản sao lưu dữ liệu (.json)">Sao lưu</button>
-    <button class="btn" id="btn-import" title="Nạp lại bản sao lưu (.json)">Nạp lại</button>
-    <button class="btn" id="btn-csv" title="Xuất bảng theo dõi hồ sơ ra CSV (mở bằng Excel)">Xuất CSV</button>
+    <div class="seg modeseg" id="mode-seg" title="Kiểm kê: chỉ theo dõi số lượng hồ sơ. Đầy đủ: kiểm kê + rà soát pháp lý"><button data-mode="inv">Kiểm kê</button><button data-mode="full">Đầy đủ</button></div>
+    <button class="btn" id="btn-mode" hidden></button>
+    <div class="dm"><button class="btn" id="btn-data" aria-haspopup="true" title="Sao lưu, nạp lại, xuất CSV">Dữ liệu ▾</button>
+      <div class="menu" id="data-menu" hidden>
+        <button class="btn" id="btn-export" title="Tải bản sao lưu dữ liệu (.json)">Sao lưu (.json)</button>
+        <button class="btn" id="btn-import" title="Nạp lại bản sao lưu (.json)">Nạp lại từ bản sao lưu</button>
+        <button class="btn" id="btn-csv" title="Xuất bảng theo dõi hồ sơ ra CSV (mở bằng Excel)">Xuất CSV</button>
+      </div></div>
     <input type="file" id="file-import" accept=".json,application/json" hidden>
   </div>
 </div></header>
@@ -294,12 +345,17 @@ function vOverview(){
   const shortN=S.items.filter(isShort).length;
   const repKeys=new Set();S.items.forEach(it=>{if(REP.test(it.doc_group||''))repKeys.add(setKey(it))});
   const unconf=[...repKeys].filter(k=>!(setsStore()[k]&&setsStore()[k].confirmed)).length;
-  h+=`<div class="kpis">${kpi('Số DN rà soát',S.dn.length)}${kpi('Mục hồ sơ cần có',t.den)}${kpi('% kiểm kê hồ sơ',pct(t.kk),'','green')}${kpi('Mục thiếu / cần bổ sung',t.thieu,'',t.thieu?'amber':'')}${kpi('Mục quá hạn (kiểm kê)',t.overdue,'',t.overdue?'red':'')}${kpi('DN đã hoàn tất kiểm kê',doneDn)}${kpi('Đã đủ nhưng thiếu số bản',shortN,'',shortN?'amber':'')}${kpi('Bộ hồ sơ chưa xác nhận số lần/kỳ',unconf,'Biên bản, nghị quyết, thay đổi…',unconf?'amber':'')}</div>`;
+  const mini=(l,n,cls)=>`<span class="mini ${n&&cls?cls:''}">${l}: <b>${n}</b></span>`;
+  h+=`<div class="kpis kpis4">${kpi('Số DN rà soát',S.dn.length)}${kpi('Mục hồ sơ cần có',t.den)}${kpi('% kiểm kê hồ sơ',pct(t.kk),'','green')}${kpi('Bộ hồ sơ chưa xác nhận số lần/kỳ',unconf,'Biên bản, nghị quyết…',unconf?'amber':'')}</div><div class="minis">${mini('Mục thiếu / cần bổ sung',t.thieu,'amber')}${mini('Mục quá hạn',t.overdue,'red')}${mini('DN hoàn tất kiểm kê',doneDn+'/'+S.dn.length,'')}${mini('Đã đủ nhưng thiếu số bản',shortN,'amber')}</div>`;
   h+=isInv()?`<div class="banner"><b>Chế độ kiểm kê:</b> đang theo dõi số lượng hồ sơ. Phần đánh giá pháp lý và khắc phục được ẩn (bấm “Chế độ” trên thanh trên cùng để bật lại).</div>`:`<div class="banner"><b>Kiểm kê:</b> ${pct(t.kk)} &nbsp;|&nbsp; <b>Kết luận pháp lý:</b> ${pct(t.kl)} &nbsp;|&nbsp; <b>Khắc phục:</b> ${pct(t.kp)} &nbsp;|&nbsp; <b>Rủi ro cao đang mở:</b> ${hi}</div>`;
 
-  h+=`<h3 class="sec">A. Tiến độ theo từng doanh nghiệp</h3><div class="tw"><table><thead><tr><th>STT</th><th>Doanh nghiệp</th><th>Người phụ trách</th><th>Trạng thái kiểm kê</th><th class="c">Tổng số mục</th><th class="c">Chưa rà soát</th><th class="c">Đang thu thập</th><th class="c">Thiếu – cần bổ sung</th><th class="c">Đã đủ</th><th class="c">Không áp dụng</th><th class="c">Quá hạn</th><th>% kiểm kê</th></tr></thead><tbody>`;
-  C.dnStats.forEach((s,i)=>{h+=`<tr><td>${i+1}</td><td><b>${esc(s.dn.name)}</b></td><td>${esc(s.dn.owner||'')}</td><td>${stateChip(s.state)}</td>${n0(s.total)}${n0(s.chua)}${n0(s.dang)}${n0(s.thieu)}${n0(s.done)}${n0(s.na)}${n0(s.overdue)}<td>${bar(s.kk)}</td></tr>`});
-  h+=`<tr class="total"><td></td><td>TỔNG CỘNG</td><td></td><td></td>${['total','chua','dang','thieu','done','na','overdue'].map(k=>`<td class="num">${t[k]}</td>`).join('')}<td>${bar(t.kk)}</td></tr></tbody></table></div>`;
+  const multiOwner=new Set(C.dnStats.map(s=>s.dn.owner||'')).size>1;
+  const PART=[['d','Đã đủ','done'],['g','Đang thu thập','dang'],['t','Thiếu – cần bổ sung','thieu'],['c','Chưa rà soát','chua'],['n','Không áp dụng','na']];
+  const segs=s=>{const T=s.total||0;const P=PART.map(([c,l,k])=>[c,l,s[k]||0]);
+    return `<div class="sb" role="img" aria-label="${P.map(p=>p[1]+' '+p[2]).join(', ')}">${T?P.filter(p=>p[2]>0).map(p=>`<i class="${p[0]}" style="width:${p[2]/T*100}%" title="${p[1]}: ${p[2]}"></i>`).join(''):''}</div><div class="sbn">${P.filter(p=>p[2]>0).map(p=>`<span title="${p[1]}"><u class="${p[0]}"></u>${p[2]}</span>`).join('')}${s.overdue?`<span class="od">Quá hạn ${s.overdue}</span>`:''}</div>`};
+  h+=`<h3 class="sec">A. Tiến độ theo từng doanh nghiệp</h3><div class="lgd">${PART.map(([c,l])=>`<span><u class="${c}"></u>${l}</span>`).join('')}</div><div class="tw"><table><thead><tr><th>STT</th><th>Doanh nghiệp</th>${multiOwner?'<th>Người phụ trách</th>':''}<th>Trạng thái kiểm kê</th><th class="c">Tổng số mục</th><th class="sbc">Phân bổ theo tình trạng</th><th>% kiểm kê</th></tr></thead><tbody>`;
+  C.dnStats.forEach((s,i)=>{h+=`<tr><td>${i+1}</td><td><b>${esc(s.dn.name)}</b></td>${multiOwner?`<td>${esc(s.dn.owner||'')}</td>`:''}<td>${stateChip(s.state)}</td><td class="num">${s.total}</td><td class="sbc">${segs(s)}</td><td>${bar(s.kk)}</td></tr>`});
+  h+=`<tr class="total"><td></td><td>TỔNG CỘNG</td>${multiOwner?'<td></td>':''}<td></td><td class="num">${t.total}</td><td class="sbc">${segs(t)}</td><td>${bar(t.kk)}</td></tr></tbody></table></div>`;
   h+=`<p class="note">% kiểm kê = Đã đủ ÷ (Tổng số mục − Không áp dụng) – chỉ đo mức hoàn thành KIỂM KÊ hồ sơ, không phản ánh kết luận pháp lý (xem mục C và tab Dashboard TGĐ).</p>`;
 
   const gl=Object.keys(GSHORT).map(k=>GSHORT[k]);
@@ -399,6 +455,8 @@ function vDN(){
 }
 
 /* ---------- TAB: Theo dõi hồ sơ ---------- */
+let FLOPEN=false;
+function updBadge(){const b=document.getElementById('f-tgl');if(!b)return;const n=[F.group,F.status,F.result,F.flag,F.q].filter(Boolean).length;b.innerHTML='Bộ lọc'+(n?`<span class="badge">${n}</span>`:'')}
 const F={dn:'',group:'',status:'',result:'',flag:'',q:'',page:0,view:'tree'}; const PAGE=60;
 function vTrack(){
   const tree=F.view==='tree';
@@ -406,13 +464,17 @@ function vTrack(){
   const groups=[...new Set(S.items.map(i=>i.group))];
   let h=`<h2 class="page">Theo dõi hồ sơ pháp lý</h2><p class="sub">${tree?'Mỗi bộ hồ sơ có thể có nhiều lần/kỳ (nhiều cuộc họp, nhiều lần thay đổi, nhiều lần bổ nhiệm…). Bấm tên bộ hồ sơ để mở, “+ Thêm lần/kỳ” để thêm lần mới, và tích “Đã xác nhận đủ số lần/kỳ” khi đã rà hết.':(isInv()?'Chế độ kiểm kê: bấm vào dòng để nhập số bản, thiếu gì, đơn vị giữ, vị trí lưu.':'Bấm vào dòng để mở chi tiết: A. Kiểm kê · B. Đánh giá pháp lý · C. Xử lý &amp; khắc phục.')}</p>`;
   h+=`<div class="filters"><div class="seg"><button data-tv="tree" class="${tree?'on':''}">Theo bộ hồ sơ</button><button data-tv="flat" class="${tree?'':'on'}">Danh sách phẳng</button></div>
-  <select class="fl" id="f-dn">${tree?'':'<option value="">Tất cả DN</option>'}${S.dn.map(d=>`<option${F.dn===d.name?' selected':''}>${esc(d.name)}</option>`).join('')}</select>
+  <div class="chips only-m" id="dn-chips">${tree?'':`<button class="dnchip${F.dn===''?' on':''}" data-dnchip="">Tất cả DN</button>`}${S.dn.map((d,i)=>`<button class="dnchip${F.dn===d.name?' on':''}" data-dnchip="${i}">${esc(d.name)}</button>`).join('')}</div>
+  <select class="fl only-d" id="f-dn">${tree?'':'<option value="">Tất cả DN</option>'}${S.dn.map(d=>`<option${F.dn===d.name?' selected':''}>${esc(d.name)}</option>`).join('')}</select>
+  <button class="btn fl-toggle only-m" id="f-tgl" aria-expanded="${FLOPEN?'true':'false'}">Bộ lọc${(F.group||F.status||F.result||F.flag||F.q)?`<span class="badge">${[F.group,F.status,F.result,F.flag,F.q].filter(Boolean).length}</span>`:''}</button>
+  <div class="fl-more${FLOPEN?' open':''}" id="fl-more">
   <select class="fl" id="f-group"><option value="">Tất cả nhóm hồ sơ</option>${groups.map(g=>`<option${F.group===g?' selected':''}>${esc(g)}</option>`).join('')}</select>
   <select class="fl" id="f-status"><option value="">Mọi tình trạng kiểm kê</option>${STATUS.map(g=>`<option${F.status===g?' selected':''}>${g}</option>`).join('')}</select>
   ${(tree||isInv())?'':`<select class="fl" id="f-result"><option value="">Mọi kết quả rà soát</option>${RESULT.map(g=>`<option${F.result===g?' selected':''}>${g}</option>`).join('')}</select>`}
   ${tree?'':`<select class="fl" id="f-flag"><option value="">Không lọc đặc biệt</option>${(isInv()?[['over','Quá hạn kiểm kê'],['short','Đã đủ nhưng thiếu số bản'],['unas','Chưa phân công'],['lack','Đang thiếu / cần bổ sung']]:[['over','Quá hạn kiểm kê'],['short','Đã đủ nhưng thiếu số bản'],['open','Vấn đề đang mở'],['miss','Thiếu thông tin bắt buộc'],['tgd','Cần TGĐ quyết định']]).map(([v,l])=>`<option value="${v}"${F.flag===v?' selected':''}>${l}</option>`).join('')}</select>`}
   <input class="fl q" id="f-q" type="search" placeholder="Tìm theo tên hồ sơ, lần/kỳ, ghi chú…" value="${esc(F.q)}">
-  <button class="btn" id="f-reset">Xóa lọc</button>${tree?'<button class="btn" id="t-open">Mở tất cả</button><button class="btn" id="t-close">Thu gọn</button>':''}<button class="btn pri" id="it-add">+ Thêm hạng mục</button></div><div id="trk-body"></div>`;
+  <button class="btn" id="f-reset">Xóa lọc</button></div>
+  ${tree?'<button class="btn" id="t-open">Mở tất cả</button><button class="btn" id="t-close">Thu gọn</button>':''}<button class="btn pri" id="it-add">+ Thêm hạng mục</button></div><div id="trk-body"></div>`;
   return h;
 }
 function trackBody(){
@@ -613,6 +675,7 @@ let tab=(location.hash||'#overview').slice(1); if(!TABS.find(t=>t[0]===tab))tab=
 function render(){
   if(isInv()&&tab==='dash')tab='overview';
   $('#btn-mode').textContent=isInv()?'Chế độ: Kiểm kê':'Chế độ: Đầy đủ';
+  document.querySelectorAll('#mode-seg [data-mode]').forEach(b=>b.classList.toggle('on',(b.dataset.mode==='inv')===isInv()));
   $('#tabs').innerHTML=TABS.filter(t=>!(isInv()&&t[0]==='dash')).map(([k,l])=>`<button data-tab="${k}" class="${k===tab?'on':''}">${l}</button>`).join('');
   $('#view').innerHTML=TABS.find(t=>t[0]===tab)[2]();
   if(tab==='track')trackBody();
@@ -624,7 +687,13 @@ function go(k){tab=k;try{history.replaceState(null,'','#'+k)}catch(e){}render();
 /* ---------- sự kiện ---------- */
 document.addEventListener('click',e=>{
   const t=e.target;
+  const dm=document.getElementById('data-menu');
+  if(t.closest('#btn-data')){dm.hidden=!dm.hidden;return}
+  if(dm&&!dm.hidden){ if(t.closest('#data-menu'))setTimeout(()=>{dm.hidden=true},0); else dm.hidden=true }
+  const md=t.closest('[data-mode]'); if(md){if((md.dataset.mode==='inv')!==isInv())$('#btn-mode').click();return}
   const tb=t.closest('[data-tab]'); if(tb) return go(tb.dataset.tab);
+  const dc=t.closest('[data-dnchip]'); if(dc){F.dn=dc.dataset.dnchip===''?'':S.dn[+dc.dataset.dnchip].name;F.page=0;render();const a=document.querySelector('.dnchip.on');if(a&&a.parentElement)a.parentElement.scrollLeft=Math.max(0,a.offsetLeft-24);return}
+  if(t.closest('#f-tgl')){FLOPEN=!FLOPEN;const m=document.getElementById('fl-more');if(m)m.classList.toggle('open',FLOPEN);t.closest('#f-tgl').setAttribute('aria-expanded',FLOPEN?'true':'false');return}
   if(t.closest('select,input,textarea')) return;
   const tv=t.closest('[data-tv]'); if(tv){F.view=tv.dataset.tv;if(F.view==='tree'&&!F.dn)F.dn=S.dn[0]?S.dn[0].name:'';render();return}
   const tg=t.closest('[data-toggle]'); if(tg){const k=treeKeys[+tg.dataset.toggle];OPEN.has(k)?OPEN.delete(k):OPEN.add(k);treeBody();return}
@@ -647,7 +716,7 @@ document.addEventListener('change',e=>{
   const t=e.target;
   if(t.dataset.conf!==undefined){const k=treeKeys[+t.dataset.conf];const st=setsStore();st[k]=st[k]||{};st[k].confirmed=t.checked;save();treeBody();return}
   if(t.dataset.bi){const p=t.dataset.bi.split('|'),k=treeKeys[+p[0]],n=+p[1],f=p[2];S.items.forEach(it=>{if(setKey(it)===k&&(it.instno||1)===n){if(t.value)it[f]=t.value;else delete it[f]}});save();return}
-  if(t.id&&t.id.startsWith('f-')&&t.id!=='f-q'){F[t.id.slice(2)]=t.value;F.page=0;trackBody();return}
+  if(t.id&&t.id.startsWith('f-')&&t.id!=='f-q'){F[t.id.slice(2)]=t.value;F.page=0;trackBody();updBadge();return}
   if(t.dataset.list){const v=t.value.split('\n').map(s=>s.trim()).filter(Boolean).slice(0,t.dataset.list==='checks'?30:10);S[t.dataset.list]=v;save();render();return}
   if(t.dataset.param){let v=parseFloat(t.value);if(!isFinite(v)||v<0)v=0;if(t.dataset.param==='lag')v=Math.min(100,v)/100;else v=Math.round(v);S[t.dataset.param]=v;save();return}
   if(t.id==='file-import'){const f=t.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o.items||!o.dn)throw 0;S=o;save();render();alert('Đã nạp dữ liệu từ bản sao lưu.')}catch(x){alert('File không đúng định dạng sao lưu của công cụ này.')}};r.readAsText(f);t.value='';return}
@@ -667,7 +736,7 @@ document.addEventListener('change',e=>{
     save();render();
   }else if(kind==='stg'){const s=S.stages[+i];if(v)s[key]=v;else s[key]=null;save();render()}
 });
-document.addEventListener('input',e=>{if(e.target.id==='f-q'){F.q=e.target.value;F.page=0;trackBody()}});
+document.addEventListener('input',e=>{if(e.target.id==='f-q'){F.q=e.target.value;F.page=0;trackBody();updBadge()}});
 $('#btn-mode').onclick=()=>{S.mode=isInv()?'full':'inv';save();render()};
 $('#btn-export').onclick=()=>dl(new Blob([JSON.stringify(S)],{type:'application/json'}),'ra-soat-phap-ly_'+TODAY+'.json');
 $('#btn-import').onclick=()=>$('#file-import').click();
@@ -722,12 +791,10 @@ render();
 /* thanh công cụ có thêm nút Google Sheet: tự xuống dòng, không làm tràn trang */
 .tools{flex-wrap:wrap;min-width:0;max-width:100%}
 .tools .btn{white-space:nowrap}
-#rc-status{min-width:0}
 #rc-dlg::backdrop{background:rgba(0,0,0,.35)}
 #rc-dlg .btn{width:100%;justify-content:center;text-align:center}
 @media (max-width:760px){
   .tools{width:100%}
-  #rc-status{order:-1;flex:1 1 100%;max-width:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
 }
 </style>
 <dialog id="rc-dlg" style="border:0;border-radius:14px;padding:18px 20px;max-width:min(440px,92vw);box-shadow:0 12px 40px rgba(0,0,0,.25)">
@@ -861,13 +928,16 @@ render();
 
   /* ---------- trạng thái, giao diện ---------- */
   var $$=function(id){return document.getElementById(id)};
-  var barSt=document.createElement('span');barSt.className='muted';barSt.id='rc-status';barSt.style.cssText='max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  var barSt=document.createElement('div');barSt.id='rc-status';barSt.hidden=true;
   var btn=document.createElement('button');btn.className='btn';btn.id='btn-sh';btn.textContent='Google Sheet';btn.title='Đồng bộ dữ liệu với Google Sheet dùng chung với Pháp chế FGC';
   var link=document.createElement('a');link.className='btn';link.textContent='← Pháp chế FGC';link.title='Mở app Quản lý công việc pháp chế (cùng Google Sheet)';link.style.textDecoration='none';
   link.href='https://vuquangphat.github.io/phap-che-app/?sh='+encodeURIComponent(CFG.id)+(CFG.id2?'&sh2='+encodeURIComponent(CFG.id2):'')+'&cid='+encodeURIComponent(CFG.client);
   var tools=document.querySelector('.tools');
-  if(tools){tools.insertBefore(link,tools.firstChild);tools.insertBefore(btn,$$('btn-mode'));tools.insertBefore(barSt,btn)}
-  function status(m,bad){barSt.textContent=m||'';barSt.title=m||'';barSt.style.color=bad?'#b3261e':''}
+  if(tools){tools.insertBefore(link,tools.firstChild);tools.insertBefore(btn,$$('mode-seg'));var topin=document.querySelector('.top-in');if(topin)topin.appendChild(barSt)}
+  var stT=null;
+  function status(m,bad){var busyM=/^Đang/.test(m||'');barSt.textContent=m||'';barSt.hidden=!m;barSt.className=bad?'bad':'';
+    btn.dataset.st=bad?'bad':(busyM?'busy':(connected?'ok':'off'));btn.title=m||'Đồng bộ dữ liệu với Google Sheet dùng chung với Pháp chế FGC';
+    clearTimeout(stT);if(m&&!bad&&!busyM)stT=setTimeout(function(){barSt.hidden=true},6000)}
   var getDirty=function(){try{return localStorage.getItem(K_DIRTY)==='1'}catch(e){return false}};
   var setDirty=function(v){try{v?localStorage.setItem(K_DIRTY,'1'):localStorage.removeItem(K_DIRTY)}catch(e){}};
   var lastRev=function(){try{var v=localStorage.getItem(K_REV);return v===null?null:+v}catch(e){return null}};
