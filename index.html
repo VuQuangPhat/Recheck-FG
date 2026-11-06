@@ -276,7 +276,19 @@ function assignNhom(it){
   if(/^(điều lệ|phụ lục)/.test(d)||/chuyên đề rà soát: điều lệ/.test(g))return 'dieule';
   return /^I\./.test(it.group||'')?'phaply':null;
 }
+/* Phạm vi rà soát: chỉ 5 DN. 4 DN còn lại (GETFIT, KIM LONG, HƯỚNG VIỆT, TIẾN PHƯƠNG) không đưa vào hệ thống này; bản đầy đủ cũ được giữ 1 bản trên máy (rc_backup_scope9) để khôi phục khi cần */
+const KEEP_DN=['FG','FGI','HLI','BẢO AN','HLM'];
 let ASSIGN_FRESH=false;
+function ensureScope(){
+  if(S.scopeV===1)return false;
+  ASSIGN_FRESH=true;
+  if(S.dn.some(d=>!KEEP_DN.includes(d.name))||S.items.some(i=>!KEEP_DN.includes(i.dn))){
+    try{if(localStorage.getItem('fg-ra-soat-phap-ly-v1')!==null&&localStorage.getItem('rc_backup_scope9')===null)localStorage.setItem('rc_backup_scope9',localStorage.getItem('fg-ra-soat-phap-ly-v1'))}catch(e){}
+    S.dn=S.dn.filter(d=>KEEP_DN.includes(d.name));S.dn.forEach((d,i)=>{d.stt=i+1});
+    S.items=S.items.filter(i=>KEEP_DN.includes(i.dn));
+  }
+  S.scopeV=1;return true;
+}
 function ensureAssign(){
   if(S.assignV===1)return false;
   ASSIGN_FRESH=true;
@@ -290,7 +302,7 @@ function ensureAssign(){
   });
   S.assignV=1;return true;
 }
-ensureAssign();
+ensureScope();ensureAssign();
 let saveT;
 function save(){
   clearTimeout(saveT);
@@ -1065,7 +1077,7 @@ render();
   function applyRemote(st,r){
     applying=true;
     try{S=st;try{localStorage.setItem('fg-ra-soat-phap-ly-v1',JSON.stringify(st))}catch(e){}setRev(r);setDirty(false);render()}finally{applying=false}
-    if(ensureAssign()){save();render()}
+    if(ensureScope()|ensureAssign()){save();render()}
     status('Đã tải từ Google Sheet lúc '+now());
   }
   /* móc vào hàm save() của app: mỗi lần lưu sẽ đẩy lên Sheet sau 2 giây */
