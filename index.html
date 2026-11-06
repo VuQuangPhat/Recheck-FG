@@ -47,6 +47,11 @@ h3.sec{margin:36px 0 12px;font-size:1.25rem;font-weight:700;letter-spacing:-.02e
 .ring i{width:70px;height:70px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-style:normal;font-weight:700;font-size:1.15rem;color:var(--ink);letter-spacing:-.02em}
 .ring-card .l{font-size:.78rem;color:var(--muted);font-weight:600}
 .ring-card .s{font-size:.85rem;color:var(--ink);margin-top:3px}
+.asg-wrap{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:4px 14px}
+.asg{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1.25fr);gap:8px;padding:9px 0;border-bottom:1px solid var(--line);align-items:start}
+.asg:last-child{border-bottom:0}
+.asg small{display:block;color:var(--muted);font-size:.78rem;overflow-wrap:anywhere;margin-top:2px}
+.asg .chip{white-space:normal}
 .tw{overflow:auto;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow)}
 table{border-collapse:collapse;width:100%;font-size:.86rem}
 th{background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:var(--muted);font-weight:600;text-align:left;padding:11px 12px;white-space:nowrap;position:sticky;top:0;z-index:1;font-size:.75rem;border-bottom:1px solid var(--line2)}
@@ -261,6 +266,31 @@ function load(){
   try{const r=localStorage.getItem(KEY); if(r){const o=JSON.parse(r); if(o&&o.items&&o.dn) return o;}}catch(e){}
   return clone(SEED);
 }
+/* Phân công & hạn theo DN (từ bảng công việc của Phòng Pháp chế). Chỉ là dữ liệu khởi tạo: được áp một lần vào S (S.assign), sau đó lưu/đồng bộ như dữ liệu thường */
+const ASSIGN=[
+ {dn:'BẢO AN',nhom:'dieule',person:'Toàn',due:'2026-10-31'},{dn:'HLM',nhom:'dieule',person:'Xuân',due:'2026-11-30'},{dn:'HLI',nhom:'dieule',person:'Dũng',due:'2026-12-31'},{dn:'FGI',nhom:'dieule',person:'Thuý',due:'2026-10-31'},{dn:'FG',nhom:'dieule',person:'Tùng',due:'2026-10-31'},
+ {dn:'BẢO AN',nhom:'phaply',person:'Toàn',due:'2026-12-31'},{dn:'HLM',nhom:'phaply',person:'Xuân',due:'2026-12-31'},{dn:'HLI',nhom:'phaply',person:'Dũng',due:'2026-11-30'},{dn:'FGI',nhom:'phaply',person:'Thuý',due:'2026-10-31'},{dn:'FG',nhom:'phaply',person:'Tùng',due:'2026-10-31'}];
+const NHOM_ASSIGN={dieule:'2 – Điều lệ',phaply:'1 – Pháp lý doanh nghiệp'};
+function assignNhom(it){
+  const d=String(it.doc||'').toLowerCase(),g=String(it.doc_group||'').toLowerCase();
+  if(/^(điều lệ|phụ lục)/.test(d)||/chuyên đề rà soát: điều lệ/.test(g))return 'dieule';
+  return /^I\./.test(it.group||'')?'phaply':null;
+}
+let ASSIGN_FRESH=false;
+function ensureAssign(){
+  if(S.assignV===1)return false;
+  ASSIGN_FRESH=true;
+  S.assign=ASSIGN.map(a=>Object.assign({},a));
+  S.people=S.people||[];ASSIGN.forEach(a=>{if(!S.people.includes(a.person))S.people.push(a.person)});
+  S.items.forEach(it=>{
+    const n=assignNhom(it);if(!n)return;
+    const r=ASSIGN.find(x=>x.dn===it.dn&&x.nhom===n);if(!r)return;
+    if(!it.person)it.person=r.person;
+    if(!it.due)it.due=r.due;
+  });
+  S.assignV=1;return true;
+}
+ensureAssign();
 let saveT;
 function save(){
   clearTimeout(saveT);
@@ -407,6 +437,18 @@ function vOverview(){
   if(outside) h+=`<tr class="total"><td></td><td>Người ngoài danh sách nhân sự</td><td class="num">${outside}</td><td colspan="5"></td></tr>`;
   h+=`</tbody></table></div><p class="note">Quản lý danh sách nhân sự ở tab “Cài đặt” (tối đa 10 người).</p>`;
 
+  if(S.assign&&S.assign.length){
+    h+=`<h3 class="sec">Phân công và hạn theo doanh nghiệp</h3><div class="asg-wrap">`;
+    S.assign.forEach(a=>{
+      const rs=S.items.filter(it=>it.dn===a.dn&&assignNhom(it)===a.nhom&&it.status!=='Không áp dụng');
+      const dn=cnt(rs,it=>it.status==='Đã đủ');
+      const late=rs.length&&dn<rs.length&&a.due<TODAY;
+      const days=Math.round((ts(TODAY)-ts(a.due))/86400000);
+      h+=`<div class="asg"><div><b>${esc(a.dn)}</b><small>${esc(NHOM_ASSIGN[a.nhom]||a.nhom)}</small></div><div>${esc(a.person)}<small>Hạn ${vdate(a.due)}</small></div><div>${late?`<span class="chip r">Quá hạn ${days} ngày</span>`:(rs.length&&dn===rs.length?'<span class="chip g">Hoàn tất</span>':'<span class="chip n">Trong hạn</span>')}<small>${dn}/${rs.length} mục đã đủ</small></div></div>`;
+    });
+    h+=`</div>`;
+    h+=`<p class="note">Nguồn: bảng công việc Phòng Pháp chế. Hạn và người phụ trách được gán cho các mục Điều lệ và nhóm I (Hồ sơ doanh nghiệp) của 5 DN này; các nhóm II–VI chưa phân công.</p>`;
+  }
   h+=`<h3 class="sec">${isInv()?'D':'E'}. Tiến độ theo giai đoạn <span style="font-weight:400;color:var(--muted);font-size:.8rem">(nhập ngày kế hoạch ở các ô ngày)</span></h3><div class="tw"><table><thead><tr><th>STT</th><th>Giai đoạn</th><th>Ngày bắt đầu (KH)</th><th>Hạn hoàn thành (KH)</th><th class="c">% thời gian đã trôi</th><th class="c">% hoàn thành thực tế</th><th class="c">Chênh lệch</th><th>Đánh giá</th></tr></thead><tbody>`;
   const stg=[['Giai đoạn 1 – Kiểm kê, thu thập hồ sơ',t.kk],['Giai đoạn 2 – Đánh giá pháp lý',t.kl],['Giai đoạn 3 – Khắc phục vấn đề phát hiện',t.kp]];
   stg.forEach(([name,act],i)=>{
@@ -1023,11 +1065,14 @@ render();
   function applyRemote(st,r){
     applying=true;
     try{S=st;try{localStorage.setItem('fg-ra-soat-phap-ly-v1',JSON.stringify(st))}catch(e){}setRev(r);setDirty(false);render()}finally{applying=false}
+    if(ensureAssign()){save();render()}
     status('Đã tải từ Google Sheet lúc '+now());
   }
   /* móc vào hàm save() của app: mỗi lần lưu sẽ đẩy lên Sheet sau 2 giây */
   var _save=window.save;
   window.save=function(){var r=_save.apply(this,arguments);if(!applying){setDirty(true);schedule()}return r};
+  /* dữ liệu đã có trên máy này vừa được gán phân công: lưu để đẩy lên Sheet; máy mới (chưa có dữ liệu) thì không lưu để còn nhận bản từ Sheet */
+  if(ASSIGN_FRESH&&localStorage.getItem('fg-ra-soat-phap-ly-v1')!==null){ASSIGN_FRESH=false;window.save()}
 
   async function init(interactive){
     try{
