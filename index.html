@@ -467,10 +467,10 @@ function vOverview(){
       const dn=cnt(rs,it=>it.status==='Đã đủ');
       const late=rs.length&&dn<rs.length&&a.due<TODAY;
       const days=Math.round((ts(TODAY)-ts(a.due))/86400000);
-      h+=`<div class="asg"><div><b>${esc(a.dn)}</b><small>${esc(NHOM_ASSIGN[a.nhom]||a.nhom)}</small></div><div>${esc(a.person)}<small>Hạn ${vdate(a.due)}</small></div><div>${late?`<span class="chip r">Quá hạn ${days} ngày</span>`:(rs.length&&dn===rs.length?'<span class="chip g">Hoàn tất</span>':'<span class="chip n">Trong hạn</span>')}<small>${dn}/${rs.length} mục đã đủ</small></div>${a.nhom==='dieule'?asgDl(a.dn):''}</div>`;
+      h+=`<div class="asg"><div><b>${esc(a.dn)}</b><small>${esc(NHOM_ASSIGN[a.nhom]||a.nhom)}</small></div><div>TGĐ ${esc(a.person)}<small>Hạn ${vdate(a.due)}</small></div><div>${late?`<span class="chip r">Quá hạn ${days} ngày</span>`:(rs.length&&dn===rs.length?'<span class="chip g">Hoàn tất</span>':'<span class="chip n">Trong hạn</span>')}<small>${dn}/${rs.length} mục đã đủ</small></div>${a.nhom==='dieule'?asgDl(a.dn):''}</div>`;
     });
     h+=`</div>`;
-    h+=`<p class="note">Nguồn: bảng công việc Phòng Pháp chế. Hạn và người phụ trách được gán cho các mục Điều lệ và nhóm I (Hồ sơ doanh nghiệp) của 5 DN này; các nhóm II–VI chưa phân công.</p>`;
+    h+=`<p class="note">Nguồn: bảng công việc Phòng Pháp chế. Người phụ trách là Tổng giám đốc của từng DN. Hạn và người phụ trách được gán cho các mục Điều lệ và nhóm I (Hồ sơ doanh nghiệp) của 5 DN này; các nhóm II–VI chưa phân công.</p>`;
   }
   h+=`<h3 class="sec">${isInv()?'D':'E'}. Tiến độ theo giai đoạn <span style="font-weight:400;color:var(--muted);font-size:.8rem">(nhập ngày kế hoạch ở các ô ngày)</span></h3><div class="tw"><table><thead><tr><th>STT</th><th>Giai đoạn</th><th>Ngày bắt đầu (KH)</th><th>Hạn hoàn thành (KH)</th><th class="c">% thời gian đã trôi</th><th class="c">% hoàn thành thực tế</th><th class="c">Chênh lệch</th><th>Đánh giá</th></tr></thead><tbody>`;
   const stg=[['Giai đoạn 1 – Kiểm kê, thu thập hồ sơ',t.kk],['Giai đoạn 2 – Đánh giá pháp lý',t.kl],['Giai đoạn 3 – Khắc phục vấn đề phát hiện',t.kp]];
@@ -546,8 +546,8 @@ function vTgd(){
 function vTgdDn(dnName){
   const synced=localStorage.getItem('rc_sh_rev')!==null,at=localStorage.getItem('rc_sh_at');
   const dn=S.dn.find(d=>d.name===dnName),C=compute(),st=C.dnStats.find(x=>x.dn.name===dnName);
-  const tgdNm=typeof window.rcTgd==='function'?window.rcTgd(dnName):'';
-  const head=`<div class="rp-head"><img class="rp-logo" alt="FGROUP" src="${LOGO}"><div><h2 class="page" style="margin:0">Báo cáo tiến độ rà soát pháp lý – ${esc(dn.name)}</h2><div class="sub" style="margin:2px 0 0">Kính gửi: Tổng giám đốc ${esc(dn.full||dn.name)}${tgdNm?` (${esc(tgdNm)})`:''}<br>FGROUP · Phòng Pháp chế · Ngày ${vdate(TODAY)}</div></div></div>`;
+  const asgP=(S.assign||[]).find(a=>a.dn===dnName),tgdNm=asgP?asgP.person:(typeof window.rcTgd==='function'?window.rcTgd(dnName):'');
+  const head=`<div class="rp-head"><img class="rp-logo" alt="FGROUP" src="${LOGO}"><div><h2 class="page" style="margin:0">Báo cáo tiến độ rà soát pháp lý – ${esc(dn.name)}</h2><div class="sub" style="margin:2px 0 0">Kính gửi: Tổng giám đốc ${esc(tgdNm||'')}${tgdNm?' – ':''}${esc(dn.full||dn.name)}<br>FGROUP · Phòng Pháp chế · Ngày ${vdate(TODAY)}</div></div></div>`;
   const its=S.items.filter(i=>i.dn===dnName);
   const rows=C.rows.filter(r=>r.it.dn===dnName);
   const PART=[['d','Đã đủ','done'],['g','Đang thu thập','dang'],['t','Thiếu – cần bổ sung','thieu'],['c','Chưa rà soát','chua'],['n','Không áp dụng','na']];
@@ -561,14 +561,14 @@ function vTgdDn(dnName){
   if(st.thieu)A.push(`<b>${st.thieu} mục thiếu / cần bổ sung.</b>`);
   (S.assign||[]).filter(a=>a.dn===dnName).forEach(a=>{
     const r=its.filter(i=>assignNhom(i)===a.nhom&&i.status!=='Không áp dụng'),d=cnt(r,i=>i.status==='Đã đủ');
-    if(r.length&&d<r.length&&a.due<TODAY)A.push(`<b>Nhóm “${esc(NHOM_ASSIGN[a.nhom])}” quá hạn ${Math.round((ts(TODAY)-ts(a.due))/86400000)} ngày</b> (hạn ${vdate(a.due)}, ${esc(a.person)} phụ trách, xong ${d}/${r.length}).`);
+    if(r.length&&d<r.length&&a.due<TODAY)A.push(`<b>Nhóm “${esc(NHOM_ASSIGN[a.nhom])}” quá hạn ${Math.round((ts(TODAY)-ts(a.due))/86400000)} ngày</b> (hạn ${vdate(a.due)}, TGĐ ${esc(a.person)} phụ trách, xong ${d}/${r.length}).`);
   });
   const repKeys=new Set();its.forEach(it=>{if(REP.test(it.doc_group||''))repKeys.add(setKey(it))});
   const unconf=[...repKeys].filter(k=>!(setsStore()[k]&&setsStore()[k].confirmed)).length;
   if(unconf)A.push(`<b>${unconf} bộ hồ sơ chưa xác nhận đủ số lần/kỳ</b> (biên bản, nghị quyết, thay đổi…).`);
   if(!isInv()){const hi=rows.filter(r=>r.d.open&&r.it.risk==='Cao').length;if(hi)A.push(`<b>${hi} rủi ro cao đang mở.</b>`);
     rows.filter(r=>r.it.tgd==='Có'&&r.d.open).slice(0,3).forEach(r=>A.push(`<b>Cần TGĐ quyết định:</b> ${esc((r.it.issue||r.it.doc||'').slice(0,90))}.`))}
-  const asg=(S.assign||[]).filter(a=>a.dn===dnName).map(a=>`${esc(NHOM_ASSIGN[a.nhom])}: ${esc(a.person)}, hạn ${vdate(a.due)}`).join(' · ');
+  const asg=(S.assign||[]).filter(a=>a.dn===dnName).map(a=>`${esc(NHOM_ASSIGN[a.nhom])}: TGĐ ${esc(a.person)}, hạn ${vdate(a.due)}`).join(' · ');
   let h=`<div class="rp">${head}`;
   if(!synced)h+=`<div class="banner" style="margin-top:12px">Số liệu chưa đồng bộ Google Sheet nên có thể chưa phải bản mới nhất.</div>`;
   h+=`<div class="card rp-big"><div><div class="l">% kiểm kê hồ sơ của ${esc(dn.name)}</div><div class="n">${pct(st.kk)}</div></div><div class="rp-bs">Đã đủ <b>${st.done}/${st.den}</b> mục hồ sơ cần có${asg?`<br><span style="font-size:.78rem">${asg}</span>`:''}</div></div>`;
