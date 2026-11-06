@@ -47,6 +47,9 @@ h3.sec{margin:36px 0 12px;font-size:1.25rem;font-weight:700;letter-spacing:-.02e
 .ring i{width:70px;height:70px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-style:normal;font-weight:700;font-size:1.15rem;color:var(--ink);letter-spacing:-.02em}
 .ring-card .l{font-size:.78rem;color:var(--muted);font-weight:600}
 .ring-card .s{font-size:.85rem;color:var(--ink);margin-top:3px}
+.rp-t{width:100%;font-size:.78rem}.rp-t th,.rp-t td{padding:6px 8px;white-space:normal;vertical-align:top;overflow-wrap:anywhere}
+.rp-ap{margin-top:6px}
+@media print{.rp-ap{break-before:page}.rp-chips{display:none!important}}
 .asg-wrap{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:4px 14px}
 .asg{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1.25fr);gap:8px;padding:9px 0;border-bottom:1px solid var(--line);align-items:start}
 .asg-dl{grid-column:1/-1;font-size:.8rem;color:var(--muted);background:var(--bg);border-radius:8px;padding:6px 9px;overflow-wrap:anywhere}
@@ -496,7 +499,7 @@ function breakTable(title,first,b){
   h+=`<tr class="total"><td>TỔNG CỘNG</td><td class="num">${b.sum.open}</td><td class="num">${b.sum.high}</td><td class="num">${b.sum.over}</td><td class="num">${b.sum.tgd}</td></tr></tbody></table></div>`;
   return h;
 }
-function vTgd(){
+function vTgdAll(){
   const synced=localStorage.getItem('rc_sh_rev')!==null,at=localStorage.getItem('rc_sh_at');
   const head=`<div class="rp-head"><img class="rp-logo" alt="FGROUP" src="${LOGO}"><div><h2 class="page" style="margin:0">Báo cáo tiến độ rà soát pháp lý</h2><div class="sub" style="margin:2px 0 0">FGROUP · Phòng Pháp chế · Ngày ${vdate(TODAY)}</div></div></div>`;
   if(!synced&&localStorage.getItem(KEY)===null)return `<div class="rp">${head}<div class="card empty">Chưa có số liệu mới nhất trên thiết bị này. Bấm “Google Sheet” ở thanh trên để đăng nhập; báo cáo sẽ tự hiện.</div></div>`;
@@ -528,6 +531,76 @@ function vTgd(){
   h+=`<div class="rp-noprint" style="margin:12px 0"><button class="btn pri" id="tgd-print">In / Lưu PDF</button></div></div>`;
   return h;
 }
+/* ---------- Báo cáo TGĐ theo từng doanh nghiệp (mỗi DN có TGĐ riêng) ---------- */
+let TGD_DN=null;
+const stTxt=s=>({'Đã đủ':'Có','Thiếu – cần bổ sung':'Thiếu','Đang thu thập':'Đang thu thập','Chưa rà soát':'Chưa kiểm','Không áp dụng':'x'}[s]||s||'Chưa kiểm');
+function vTgd(){
+  const synced=localStorage.getItem('rc_sh_rev')!==null;
+  if(!synced&&localStorage.getItem(KEY)===null)return vTgdAll();
+  const names=['Tổng hợp',...S.dn.map(d=>d.name)];
+  if(TGD_DN===null||(TGD_DN!=='Tổng hợp'&&!S.dn.some(d=>d.name===TGD_DN)))TGD_DN=S.dn.length?S.dn[0].name:'Tổng hợp';
+  const chips=`<div class="rp-noprint" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px"><span class="muted" style="align-self:center;font-size:.82rem">Báo cáo cho TGĐ của:</span>${names.map(n=>`<button class="btn${n===TGD_DN?' pri':''}" data-tgdchip="${esc(n)}">${esc(n)}</button>`).join('')}</div>`;
+  if(TGD_DN==='Tổng hợp')return `<div class="rp">${chips.replace('margin:0 0 12px','margin:0 0 0')}</div>`+vTgdAll();
+  return chips.replace('class="rp-noprint"','class="rp-noprint rp-chips"')+vTgdDn(TGD_DN);
+}
+function vTgdDn(dnName){
+  const synced=localStorage.getItem('rc_sh_rev')!==null,at=localStorage.getItem('rc_sh_at');
+  const dn=S.dn.find(d=>d.name===dnName),C=compute(),st=C.dnStats.find(x=>x.dn.name===dnName);
+  const tgdNm=typeof window.rcTgd==='function'?window.rcTgd(dnName):'';
+  const head=`<div class="rp-head"><img class="rp-logo" alt="FGROUP" src="${LOGO}"><div><h2 class="page" style="margin:0">Báo cáo tiến độ rà soát pháp lý – ${esc(dn.name)}</h2><div class="sub" style="margin:2px 0 0">Kính gửi: Tổng giám đốc ${esc(dn.full||dn.name)}${tgdNm?` (${esc(tgdNm)})`:''}<br>FGROUP · Phòng Pháp chế · Ngày ${vdate(TODAY)}</div></div></div>`;
+  const its=S.items.filter(i=>i.dn===dnName);
+  const rows=C.rows.filter(r=>r.it.dn===dnName);
+  const PART=[['d','Đã đủ','done'],['g','Đang thu thập','dang'],['t','Thiếu – cần bổ sung','thieu'],['c','Chưa rà soát','chua'],['n','Không áp dụng','na']];
+  const sb=x=>`<div class="sb">${x.total?PART.filter(p=>x[p[2]]>0).map(p=>`<i class="${p[0]}" style="width:${x[p[2]]/x.total*100}%" title="${p[1]}: ${x[p[2]]}"></i>`).join(''):''}</div>`;
+  /* nhóm hồ sơ */
+  const groups=[...new Set(its.map(i=>i.group))];
+  const gst=g=>{const a=its.filter(i=>i.group===g),na=cnt(a,i=>i.status==='Không áp dụng');return {total:a.length,done:cnt(a,i=>i.status==='Đã đủ'),dang:cnt(a,i=>i.status==='Đang thu thập'),thieu:cnt(a,i=>i.status==='Thiếu – cần bổ sung'),chua:cnt(a,i=>!i.status||i.status==='Chưa rà soát'),na,den:a.length-na}};
+  /* điểm cần chú ý */
+  const A=[];
+  if(st.overdue)A.push(`<b>${st.overdue} mục quá hạn kiểm kê.</b>`);
+  if(st.thieu)A.push(`<b>${st.thieu} mục thiếu / cần bổ sung.</b>`);
+  (S.assign||[]).filter(a=>a.dn===dnName).forEach(a=>{
+    const r=its.filter(i=>assignNhom(i)===a.nhom&&i.status!=='Không áp dụng'),d=cnt(r,i=>i.status==='Đã đủ');
+    if(r.length&&d<r.length&&a.due<TODAY)A.push(`<b>Nhóm “${esc(NHOM_ASSIGN[a.nhom])}” quá hạn ${Math.round((ts(TODAY)-ts(a.due))/86400000)} ngày</b> (hạn ${vdate(a.due)}, ${esc(a.person)} phụ trách, xong ${d}/${r.length}).`);
+  });
+  const repKeys=new Set();its.forEach(it=>{if(REP.test(it.doc_group||''))repKeys.add(setKey(it))});
+  const unconf=[...repKeys].filter(k=>!(setsStore()[k]&&setsStore()[k].confirmed)).length;
+  if(unconf)A.push(`<b>${unconf} bộ hồ sơ chưa xác nhận đủ số lần/kỳ</b> (biên bản, nghị quyết, thay đổi…).`);
+  if(!isInv()){const hi=rows.filter(r=>r.d.open&&r.it.risk==='Cao').length;if(hi)A.push(`<b>${hi} rủi ro cao đang mở.</b>`);
+    rows.filter(r=>r.it.tgd==='Có'&&r.d.open).slice(0,3).forEach(r=>A.push(`<b>Cần TGĐ quyết định:</b> ${esc((r.it.issue||r.it.doc||'').slice(0,90))}.`))}
+  const asg=(S.assign||[]).filter(a=>a.dn===dnName).map(a=>`${esc(NHOM_ASSIGN[a.nhom])}: ${esc(a.person)}, hạn ${vdate(a.due)}`).join(' · ');
+  let h=`<div class="rp">${head}`;
+  if(!synced)h+=`<div class="banner" style="margin-top:12px">Số liệu chưa đồng bộ Google Sheet nên có thể chưa phải bản mới nhất.</div>`;
+  h+=`<div class="card rp-big"><div><div class="l">% kiểm kê hồ sơ của ${esc(dn.name)}</div><div class="n">${pct(st.kk)}</div></div><div class="rp-bs">Đã đủ <b>${st.done}/${st.den}</b> mục hồ sơ cần có${asg?`<br><span style="font-size:.78rem">${asg}</span>`:''}</div></div>`;
+  h+=`<h3 class="sec" style="margin-top:16px">Tiến độ theo nhóm hồ sơ</h3><div class="lgd">${PART.map(([c,l])=>`<span><u class="${c}"></u>${l}</span>`).join('')}</div><div class="card rp-list">`;
+  h+=groups.map(g=>{const x=gst(g);return `<div class="rp-row"><div class="rp-n" style="white-space:normal">${esc(g.replace(/^[IVX]+\.\s*/,''))}</div><div class="rp-p">${x.den?pct(x.done/x.den):'–'}</div><div class="rp-b">${sb(x)}</div><div class="rp-c">${x.thieu?`<span class="chip a">Thiếu ${x.thieu}</span>`:''}</div></div>`}).join('');
+  h+=`</div><h3 class="sec" style="margin-top:16px">Điểm cần chú ý</h3><div class="card rp-att">${A.length?`<ul>${A.map(x=>`<li>${x}</li>`).join('')}</ul>`:'Không có điểm nghẽn cần báo cáo.'}</div>`;
+  /* Phụ lục A */
+  const gI=its.filter(i=>/^I\./.test(i.group||''));
+  const dgs=[...new Set(gI.map(i=>i.doc_group))];
+  h+=`<div class="rp-ap"><h3 class="sec" style="margin-top:18px">Phụ lục A. Đường dẫn lưu trữ hồ sơ doanh nghiệp</h3><div class="tw"><table class="rp-t"><thead><tr><th>Loại hồ sơ</th><th>Vị trí lưu</th><th>Nội dung / ghi chú</th><th>Cần bổ sung</th></tr></thead><tbody>`;
+  h+=dgs.map(dg=>{const a=gI.filter(i=>i.doc_group===dg),na=cnt(a,i=>i.status==='Không áp dụng'),dn2=cnt(a,i=>i.status==='Đã đủ'),th=cnt(a,i=>i.status==='Thiếu – cần bổ sung');
+    const locs=[...new Set(a.map(i=>(i.loc||'').trim()).filter(Boolean))],nts=[...new Set(a.map(i=>(i.note||'').trim()).filter(Boolean))];
+    return `<tr><td>${esc(dg)}</td><td>${locs.length?esc(locs.slice(0,2).join('; ')):'<span class="muted">Chưa ghi</span>'}</td><td>${dn2}/${a.length-na} mục đã đủ${nts.length?'; '+esc(nts.slice(0,2).join('; ')):''}</td><td>${th?'Cần bổ sung':(dn2<a.length-na?'Chưa kiểm kê xong':'')}</td></tr>`}).join('');
+  h+=`</tbody></table></div>`;
+  /* Phụ lục B: đối soát điều lệ theo từng lần/kỳ */
+  const dlDg=dgs.filter(dg=>gI.some(i=>i.doc_group===dg&&assignNhom(i)==='dieule'));
+  h+=`<h3 class="sec" style="margin-top:18px">Phụ lục B. Bảng đối soát thành phần điều lệ (bản scan pdf có chữ ký)</h3><div class="tw"><table class="rp-t"><thead><tr><th>Nội dung</th><th>Lần/kỳ</th><th style="min-width:74px">Ngày</th><th>Biên bản họp</th><th>Nghị quyết</th><th>Điều lệ</th></tr></thead><tbody>`;
+  const kind=(a,re)=>{const x=a.find(i=>re.test(i.doc||''));return x?stTxt(x.status):'–'};
+  const rowsB=[];
+  dlDg.forEach(dg=>{
+    const a=gI.filter(i=>i.doc_group===dg),nos=[...new Set(a.map(i=>i.instno||0))].sort((x,y)=>x-y);
+    nos.forEach(n=>{const b=a.filter(i=>(i.instno||0)===n),f=b[0];
+      rowsB.push(`<tr><td>${esc(dg)}</td><td>${n?esc(f.inst||('Lần '+n)):'<span class="muted">Chưa xác nhận</span>'}</td><td>${f.instdate?vdate(f.instdate):''}</td><td>${kind(b,/biên bản/i)}</td><td>${kind(b,/nghị quyết|quyết định/i)}</td><td>${b.filter(i=>assignNhom(i)==='dieule').map(i=>stTxt(i.status)).join(', ')||'–'}</td></tr>`)});
+  });
+  h+=rowsB.join('')||'<tr><td colspan="6" class="muted">Chưa có dữ liệu</td></tr>';
+  h+=`</tbody></table></div>`;
+  const L=typeof window.rcFgcDl==='function'?window.rcFgcDl(dnName):null;
+  h+=`<p class="note">Chú thích: Có = đã kiểm kê đủ; Thiếu = chưa tìm thấy file; Đang thu thập; Chưa kiểm; x = không áp dụng / không có biên bản, nghị quyết.${L&&L.length?` Pháp chế FGC ghi nhận ${L.filter(x=>/đầy đủ/i.test(x.loai)).length} bản điều lệ và ${L.filter(x=>/phụ lục/i.test(x.loai)).length} phụ lục (chỉ để đối chiếu).`:''}${at?` Số liệu đồng bộ Google Sheet lúc ${new Date(at).toLocaleString('vi-VN')}.`:''}</p></div>`;
+  h+=`<div class="rp-noprint" style="margin:12px 0"><button class="btn pri" id="tgd-print">In / Lưu PDF</button></div></div>`;
+  return h;
+}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-tgdchip]');if(!b)return;TGD_DN=b.dataset.tgdchip;render()});
 function vDash(){
   const C=compute(), t=C.tot, open=C.open;
   const hi=open.filter(r=>r.it.risk==='Cao').length, over=open.filter(r=>r.d.w2==='Quá hạn').length, tg=open.filter(r=>r.it.tgd==='Có').length, p1=open.filter(r=>(r.it.prio||'').startsWith('P1')).length;
@@ -811,7 +884,7 @@ document.addEventListener('click',e=>{
   const dm=document.getElementById('data-menu');
   if(t.closest('#btn-data')){dm.hidden=!dm.hidden;return}
   if(dm&&!dm.hidden){ if(t.closest('#data-menu'))setTimeout(()=>{dm.hidden=true},0); else dm.hidden=true }
-  if(t.id==='tgd-print'){const old=document.title;document.title='Bao-cao-tien-do-ra-soat-phap-ly-'+TODAY;window.print();document.title=old;return}
+  if(t.id==='tgd-print'){const old=document.title;document.title='Bao-cao-tien-do-ra-soat-phap-ly-'+(typeof TGD_DN==='string'?TGD_DN.replace(/\s+/g,'-')+'-':'')+''+TODAY;window.print();document.title=old;return}
   const md=t.closest('[data-mode]'); if(md){if((md.dataset.mode==='inv')!==isInv())$('#btn-mode').click();return}
   const tb=t.closest('[data-tab]'); if(tb) return go(tb.dataset.tab);
   const dc=t.closest('[data-dnchip]'); if(dc){F.dn=dc.dataset.dnchip===''?'':S.dn[+dc.dataset.dnchip].name;F.page=0;render();const a=document.querySelector('.dnchip.on');if(a&&a.parentElement)a.parentElement.scrollLeft=Math.max(0,a.offsetLeft-24);return}
@@ -1179,6 +1252,12 @@ render();
     if(!FGC||!FGC.dl)return null;
     var d=S.dn.find(function(x){return x.name===dnName});var c=d&&matchCo(d);if(!c)return [];
     return FGC.dl.filter(function(x){return nz(x.co)===nz(c.code)});
+  };
+  window.rcTgd=function(dnName){
+    if(!FGC||!FGC.pos)return '';
+    var d=S.dn.find(function(x){return x.name===dnName});var c=d&&matchCo(d);if(!c)return '';
+    var seen={},ns=FGC.pos.filter(function(p){return nz(p.co)===nz(c.code)&&!p.to&&/tổng giám đốc/i.test(p.title||'')}).map(function(p){return p.name}).filter(function(n){var k=nz(n);if(seen[k])return false;seen[k]=1;return true});
+    return ns.join(', ');
   };
   window.rcFgcBlock=function(){
     var E=window.esc||function(x){return String(x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
