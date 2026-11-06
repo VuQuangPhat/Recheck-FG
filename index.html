@@ -395,7 +395,7 @@ function vDN(){
   C.dnStats.forEach((s,i)=>{const d=s.dn;
     h+=`<tr><td>${i+1}</td><td><input class="inp" style="min-width:110px;font-weight:600" value="${esc(d.name)}" data-b="dn|${i}|name"></td><td><input class="inp" style="min-width:240px" value="${esc(d.full||'')}" data-b="dn|${i}|full"></td><td><select class="inp" data-b="dn|${i}|role">${opts(['Công ty mẹ','Công ty con','Công ty liên kết'],d.role)}</select></td><td><input class="inp" list="dl-people" value="${esc(d.owner||'')}" data-b="dn|${i}|owner"></td><td><input class="inp" type="date" value="${d.start||''}" data-b="dn|${i}|start"></td><td><input class="inp" type="date" value="${d.end||''}" data-b="dn|${i}|end"></td><td><input class="inp" style="min-width:180px" value="${esc(d.note||'')}" data-b="dn|${i}|note"></td><td>${stateChip(s.state)}</td><td>${bar(s.kk)}</td><td class="c">${d.end?(()=>{const x=daysTo(d.end);return x<0?`<span class="chip r">${x}</span>`:x}).call()||0:''}</td><td>${bar(s.kl)}</td><td>${pct(s.kp)}</td><td class="c">${s.rHigh}</td><td><button class="btn dng" data-deldn="${i}" title="Xóa doanh nghiệp">Xóa</button></td></tr>`});
   h+=`</tbody></table></div><p class="note">Đổi tên thư mục DN sẽ tự cập nhật tên ở các hạng mục liên quan. Xóa DN sẽ xóa cả các hạng mục của DN đó.</p>`;
-  return h;
+  return h+(typeof window.rcFgcBlock==='function'?window.rcFgcBlock():'');
 }
 
 /* ---------- TAB: Theo dõi hồ sơ ---------- */
@@ -896,6 +896,7 @@ render();
       status('Đang kết nối Google Sheet…');
       await checkRole();
       var rem=await readRemote();connected=true;
+      loadFgc().catch(function(e){status('Không đọc được Hồ sơ công ty: '+e.message,true)});
       if(ro){status('Chế độ chỉ xem'+(mail?' ('+mail+')':'')+': thay đổi không ghi lên Sheet',true)}
       if(!rem){
         if(ro){status('Sheet chưa có dữ liệu Recheck và tài khoản này chỉ xem',true);return}
@@ -928,6 +929,51 @@ render();
   $$('rc-b-force').onclick=async function(){dlg.close();if(!confirm('Ghi đè toàn bộ dữ liệu Recheck trên Google Sheet bằng dữ liệu của máy này?'))return;await push(true)};
   $$('rc-b-open').onclick=function(){window.open('https://docs.google.com/spreadsheets/d/'+CFG.id+'/edit','_blank','noopener')};
   $$('rc-b-login').onclick=async function(){dlg.close();try{await auth(true,true);mail='';connected=false;await init(true)}catch(e){status(e.message,true)}};
+
+
+  /* ---------- Thông tin pháp nhân & nhân sự từ Hồ sơ công ty (Pháp chế FGC) - chỉ đọc ---------- */
+  var K_FGC='rc_fgc_cache';
+  var FGC=(function(){try{return JSON.parse(localStorage.getItem(K_FGC)||'null')}catch(e){return null}})();
+  var e0=function(v){v=(v===undefined||v===null)?'':String(v).trim();return v==='§e'?'':v};
+  var nz=function(x){return String(x||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/gi,'d').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()};
+  var ALIAS={'fg':'fgc'};
+  var rows2obj=function(vals,keys){return (vals||[]).slice(1).map(function(r){var o={};keys.forEach(function(k,i){o[k]=e0(r[i])});return o}).filter(function(o){return o.code||o.name})};
+  async function loadFgc(){
+    /* chỉ đọc các cột cần thiết, không đọc CCCD hay hồ sơ cá nhân */
+    var j=await api('/values:batchGet?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&ranges='+rng('prof_co')+'!A:J&ranges='+rng('prof_pos')+'!A:H');
+    var vr=j.valueRanges||[];
+    var co=rows2obj(vr[0]&&vr[0].values,['id','code','name','msdn','lan','ngay','vdl','vtg','menhgia','addr']);
+    var pos=rows2obj(vr[1]&&vr[1].values,['id','name','co','role','title','from','to','uq']).filter(function(p){return p.name});
+    FGC={at:new Date().toISOString(),co:co,pos:pos};
+    try{localStorage.setItem(K_FGC,JSON.stringify(FGC))}catch(e){}
+    try{if(typeof tab!=='undefined'&&tab==='dn')render()}catch(e){}
+  }
+  var fmtD=function(v){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(v||'');return m?m[3]+'/'+m[2]+'/'+m[1]:(v||'')};
+  var fmtM=function(v){var n=+v;if(!n)return '';if(n%1e9===0)return (n/1e9).toLocaleString('vi-VN')+' tỷ đồng';return n.toLocaleString('vi-VN')+' đồng'};
+  function matchCo(d){var n=nz(d.name),a=ALIAS[n]||n,f=nz(d.full);
+    return FGC.co.find(function(c){return nz(c.code)===a})||FGC.co.find(function(c){return nz(c.name)===f})||null}
+  function people(c){
+    var ps=FGC.pos.filter(function(p){return nz(p.co)===nz(c.code)});
+    var nd=ps.filter(function(p){return p.role==='NĐDPL'});
+    var mx=nd.reduce(function(m,p){return p.from>m?p.from:m},'');
+    var cur=nd.filter(function(p){return p.from===mx}),seen={};
+    var ndpl=cur.filter(function(p){var k=nz(p.name);if(seen[k])return false;seen[k]=1;return true}).map(function(p){return p.name+(p.title&&p.title!=='Người đại diện theo pháp luật'?' ('+p.title+')':'')+(p.from?' – từ '+fmtD(p.from):'')});
+    var uq=ps.filter(function(p){return p.role==='Người được ủy quyền'&&!p.to}).map(function(p){return p.name+(p.title?' ('+p.title+')':'')});
+    return {ndpl:ndpl,uq:uq}}
+  window.rcFgcBlock=function(){
+    var E=window.esc||function(x){return String(x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+    var h='<div id="rc-fgc"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:22px 0 6px"><h3 style="margin:0;font-size:1.05rem">Thông tin pháp nhân &amp; người đại diện (từ Hồ sơ công ty – Pháp chế FGC)</h3><button class="btn" id="rc-fgc-refresh">Làm mới</button></div>';
+    if(!FGC){return h+'<p class="note">Chưa có dữ liệu. Bấm “Google Sheet” ở thanh trên để đăng nhập; thông tin sẽ tự hiện ở đây. Dữ liệu chỉ xem, sửa ở app Pháp chế FGC.</p></div>'}
+    var used={},body=S.dn.map(function(d){var c=matchCo(d);
+      if(!c)return '<tr><td><b>'+E(d.name)+'</b></td><td colspan="6" class="muted">Chưa có trong Hồ sơ công ty của app Pháp chế</td></tr>';
+      used[c.id||c.code]=1;var p=people(c);
+      return '<tr><td><b>'+E(d.name)+'</b><div class="muted">'+E(c.code)+'</div></td><td>'+E(c.msdn)+'</td><td>'+E(fmtM(c.vdl))+'</td><td style="min-width:220px">'+E(c.addr)+'</td><td>'+(c.lan?'Lần '+E(c.lan):'')+(c.ngay?'<div class="muted">'+E(fmtD(c.ngay))+'</div>':'')+'</td><td style="min-width:180px">'+(p.ndpl.length?p.ndpl.map(E).join('<br>'):'<span class="muted">Chưa ghi</span>')+'</td><td style="min-width:160px">'+(p.uq.length?p.uq.map(E).join('<br>'):'<span class="muted">–</span>')+'</td></tr>'}).join('');
+    var extra=FGC.co.filter(function(c){return !used[c.id||c.code]}).map(function(c){return c.code});
+    h+='<div class="tw"><table><thead><tr><th>Doanh nghiệp</th><th>Mã số DN</th><th>Vốn điều lệ</th><th>Trụ sở chính</th><th>ĐKDN thay đổi gần nhất</th><th>Người đại diện theo pháp luật</th><th>Người được ủy quyền</th></tr></thead><tbody>'+body+'</tbody></table></div>';
+    h+='<p class="note">Nguồn: tab prof_co, prof_pos của Google Sheet Pháp chế FGC, cập nhật lúc '+E(new Date(FGC.at).toLocaleString('vi-VN'))+'. Chỉ xem; người đại diện lấy theo bản ghi NĐDPL có ngày bắt đầu mới nhất.'+(extra.length?' Có trong Hồ sơ công ty nhưng chưa có trong danh mục rà soát này: <b>'+extra.map(E).join(', ')+'</b>.':'')+'</p></div>';
+    return h};
+  document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('#rc-fgc-refresh');if(!b)return;
+    (async function(){try{status('Đang đọc Hồ sơ công ty…');await auth(true);await loadFgc();status('Đã làm mới thông tin pháp nhân lúc '+now())}catch(e){status(e.message,true)}})()});
 
   /* tự kết nối khi đã có phiên đăng nhập còn hạn (chung với app Pháp chế) */
   if(cachedTok())init(false);else status('Chưa đăng nhập Google');
