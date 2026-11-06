@@ -187,6 +187,33 @@ td.sbc,th.sbc{min-width:200px;width:34%}
   .kpi .n{font-size:1.9rem}
   .menu{right:auto;left:0}
 }
+
+/* ===== Báo cáo TGĐ ===== */
+.rp{max-width:860px;margin:0 auto}
+.rp-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.rp-logo{height:48px;width:auto;display:block}
+.rp-big{display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px;padding:18px 22px}
+.rp-big .l{font-size:.8rem;color:var(--muted);font-weight:600}
+.rp-big .n{font-size:3.4rem;font-weight:700;line-height:1.05;color:var(--green);letter-spacing:-.04em}
+.rp-bs{font-size:.9rem;color:var(--muted);line-height:1.7}.rp-bs b{color:var(--ink)}
+.rp-list{padding:6px 16px}
+.rp-row{display:grid;grid-template-columns:minmax(80px,150px) 52px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.rp-row:last-child{border-bottom:0}
+.rp-n{font-weight:600}.rp-p{font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
+.rp-c{display:flex;gap:4px;flex-wrap:wrap;min-width:0}
+.rp-att{padding:12px 18px}.rp-att ul{margin:0;padding-left:18px}.rp-att li{margin:5px 0;line-height:1.5}
+@media (max-width:600px){
+  .rp-row{grid-template-columns:1fr auto;grid-template-areas:"n p" "b b" "c c"}
+  .rp-n{grid-area:n}.rp-p{grid-area:p}.rp-b{grid-area:b}.rp-c{grid-area:c}
+  .rp-c:empty{display:none}.rp-big .n{font-size:2.8rem}
+}
+@page{size:A4 portrait;margin:12mm}
+@media print{
+  .rp-noprint{display:none!important}
+  .rp{max-width:none}.rp .card{box-shadow:none;border:1px solid #ddd;break-inside:avoid}
+  .rp-row,.rp-att li{break-inside:avoid}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 </head>
 <body>
@@ -405,6 +432,38 @@ function breakTable(title,first,b){
   b.rows.forEach(x=>{h+=`<tr><td>${esc(x.n)}</td>${n0(x.open)}${n0(x.high)}${n0(x.over)}${n0(x.tgd)}</tr>`});
   if(b.other.open) h+=`<tr><td>${b.other.n}</td>${n0(b.other.open)}${n0(b.other.high)}${n0(b.other.over)}${n0(b.other.tgd)}</tr>`;
   h+=`<tr class="total"><td>TỔNG CỘNG</td><td class="num">${b.sum.open}</td><td class="num">${b.sum.high}</td><td class="num">${b.sum.over}</td><td class="num">${b.sum.tgd}</td></tr></tbody></table></div>`;
+  return h;
+}
+function vTgd(){
+  const synced=localStorage.getItem('rc_sh_rev')!==null,at=localStorage.getItem('rc_sh_at');
+  const head=`<div class="rp-head"><img class="rp-logo" alt="FGROUP" src="${LOGO}"><div><h2 class="page" style="margin:0">Báo cáo tiến độ rà soát pháp lý</h2><div class="sub" style="margin:2px 0 0">FGROUP · Phòng Pháp chế · Ngày ${vdate(TODAY)}</div></div></div>`;
+  if(!synced&&localStorage.getItem(KEY)===null)return `<div class="rp">${head}<div class="card empty">Chưa có số liệu mới nhất trên thiết bị này. Bấm “Google Sheet” ở thanh trên để đăng nhập; báo cáo sẽ tự hiện.</div></div>`;
+  const C=compute(),t=C.tot,N=S.dn.length,doneDn=cnt(C.dnStats,s=>s.state==='Hoàn tất');
+  const repKeys=new Set();S.items.forEach(it=>{if(REP.test(it.doc_group||''))repKeys.add(setKey(it))});
+  const unconf=[...repKeys].filter(k=>!(setsStore()[k]&&setsStore()[k].confirmed)).length;
+  const names=a=>a.slice(0,3).map(x=>esc(x.dn.name)).join(', ')+(a.length>3?'…':'');
+  const by=k=>[...C.dnStats].filter(x=>x[k]).sort((a,b)=>b[k]-a[k]);
+  const A=[];
+  if(t.overdue)A.push(`<b>${t.overdue} mục quá hạn kiểm kê</b>, nhiều nhất: ${names(by('overdue'))}.`);
+  if(t.thieu)A.push(`<b>${t.thieu} mục thiếu / cần bổ sung</b>: ${names(by('thieu'))}.`);
+  const ns=C.dnStats.filter(x=>x.state==='Chưa bắt đầu');
+  if(ns.length)A.push(`<b>${ns.length}/${N} DN chưa bắt đầu kiểm kê</b>: ${names(ns)}.`);
+  if(unconf)A.push(`<b>${unconf} bộ hồ sơ chưa xác nhận đủ số lần/kỳ</b> (biên bản, nghị quyết, thay đổi…).`);
+  if(!isInv()){
+    const hi=C.open.filter(r=>r.it.risk==='Cao').length;if(hi)A.push(`<b>${hi} rủi ro cao đang mở</b>.`);
+    C.sorted.filter(r=>r.it.tgd==='Có').slice(0,3).forEach(r=>A.push(`<b>Cần TGĐ quyết định</b> (${esc(r.it.dn)}): ${esc((r.it.issue||r.it.doc||'').slice(0,90))}.`));
+  }
+  const rows=[...C.dnStats].sort((a,b)=>(isNum(a.kk)?a.kk:-1)-(isNum(b.kk)?b.kk:-1));
+  const PART=[['d','Đã đủ','done'],['g','Đang thu thập','dang'],['t','Thiếu – cần bổ sung','thieu'],['c','Chưa rà soát','chua'],['n','Không áp dụng','na']];
+  const sb=x=>`<div class="sb">${x.total?PART.filter(p=>x[p[2]]>0).map(p=>`<i class="${p[0]}" style="width:${x[p[2]]/x.total*100}%" title="${p[1]}: ${x[p[2]]}"></i>`).join(''):''}</div>`;
+  let h=`<div class="rp">${head}`;
+  if(!synced)h+=`<div class="banner" style="margin-top:12px">Số liệu chưa đồng bộ Google Sheet nên có thể chưa phải bản mới nhất.</div>`;
+  h+=`<div class="card rp-big"><div><div class="l">% kiểm kê hồ sơ toàn tập đoàn</div><div class="n">${pct(t.kk)}</div></div><div class="rp-bs">Đã đủ <b>${t.done}/${t.den}</b> mục hồ sơ cần có<br>DN hoàn tất kiểm kê: <b>${doneDn}/${N}</b>${isInv()?'':`<br>Kết luận pháp lý: <b>${pct(t.kl)}</b> · Khắc phục: <b>${pct(t.kp)}</b>`}</div></div>`;
+  h+=`<h3 class="sec" style="margin-top:16px">Tiến độ từng doanh nghiệp</h3><div class="lgd">${PART.map(([c,l])=>`<span><u class="${c}"></u>${l}</span>`).join('')}</div><div class="card rp-list">`;
+  h+=rows.map(x=>`<div class="rp-row"><div class="rp-n">${esc(x.dn.name)}</div><div class="rp-p">${pct(x.kk)}</div><div class="rp-b">${sb(x)}</div><div class="rp-c">${x.thieu?`<span class="chip a">Thiếu ${x.thieu}</span>`:''}${x.overdue?`<span class="chip r">Quá hạn ${x.overdue}</span>`:''}</div></div>`).join('');
+  h+=`</div><h3 class="sec" style="margin-top:16px">Điểm cần chú ý</h3><div class="card rp-att">${A.length?`<ul>${A.map(x=>`<li>${x}</li>`).join('')}</ul>`:'Không có điểm nghẽn cần báo cáo.'}</div>`;
+  h+=`<p class="note">% kiểm kê = Đã đủ ÷ (Tổng số mục − Không áp dụng), chỉ đo mức hoàn thành kiểm kê hồ sơ, chưa phản ánh kết luận pháp lý.${at?` Số liệu đồng bộ Google Sheet lúc ${new Date(at).toLocaleString('vi-VN')}.`:''}</p>`;
+  h+=`<div class="rp-noprint" style="margin:12px 0"><button class="btn pri" id="tgd-print">In / Lưu PDF</button></div></div>`;
   return h;
 }
 function vDash(){
@@ -670,7 +729,7 @@ function vGuide(){
 }
 
 /* ---------- điều hướng ---------- */
-const TABS=[['overview','Tổng quan',vOverview],['dash','Dashboard TGĐ',vDash],['dn','Danh mục DN',vDN],['track','Theo dõi hồ sơ',vTrack],['set','Cài đặt',vSet],['guide','Hướng dẫn',vGuide]];
+const TABS=[['overview','Tổng quan',vOverview],['tgd','Báo cáo TGĐ',vTgd],['dash','Dashboard TGĐ',vDash],['dn','Danh mục DN',vDN],['track','Theo dõi hồ sơ',vTrack],['set','Cài đặt',vSet],['guide','Hướng dẫn',vGuide]];
 let tab=(location.hash||'#overview').slice(1); if(!TABS.find(t=>t[0]===tab))tab='overview';
 function render(){
   if(isInv()&&tab==='dash')tab='overview';
@@ -690,6 +749,7 @@ document.addEventListener('click',e=>{
   const dm=document.getElementById('data-menu');
   if(t.closest('#btn-data')){dm.hidden=!dm.hidden;return}
   if(dm&&!dm.hidden){ if(t.closest('#data-menu'))setTimeout(()=>{dm.hidden=true},0); else dm.hidden=true }
+  if(t.id==='tgd-print'){const old=document.title;document.title='Bao-cao-tien-do-ra-soat-phap-ly-'+TODAY;window.print();document.title=old;return}
   const md=t.closest('[data-mode]'); if(md){if((md.dataset.mode==='inv')!==isInv())$('#btn-mode').click();return}
   const tb=t.closest('[data-tab]'); if(tb) return go(tb.dataset.tab);
   const dc=t.closest('[data-dnchip]'); if(dc){F.dn=dc.dataset.dnchip===''?'':S.dn[+dc.dataset.dnchip].name;F.page=0;render();const a=document.querySelector('.dnchip.on');if(a&&a.parentElement)a.parentElement.scrollLeft=Math.max(0,a.offsetLeft-24);return}
@@ -941,7 +1001,7 @@ render();
   var getDirty=function(){try{return localStorage.getItem(K_DIRTY)==='1'}catch(e){return false}};
   var setDirty=function(v){try{v?localStorage.setItem(K_DIRTY,'1'):localStorage.removeItem(K_DIRTY)}catch(e){}};
   var lastRev=function(){try{var v=localStorage.getItem(K_REV);return v===null?null:+v}catch(e){return null}};
-  var setRev=function(v){rev=v;try{localStorage.setItem(K_REV,String(v))}catch(e){}};
+  var setRev=function(v){rev=v;try{localStorage.setItem(K_REV,String(v));localStorage.setItem('rc_sh_at',new Date().toISOString())}catch(e){}};
   var now=function(){return new Date().toLocaleTimeString('vi-VN')};
 
   async function push(force){
@@ -972,6 +1032,7 @@ render();
         if(ro){status('Sheet chưa có dữ liệu Recheck và tài khoản này chỉ xem',true);return}
         await push(true);return}
       var lr=lastRev();rev=rem.rev;
+      if(lr===null&&localStorage.getItem('fg-ra-soat-phap-ly-v1')===null){applyRemote(rem.st,rem.rev);return}
       if(lr===null){
         if(confirm('Google Sheet đã có dữ liệu Recheck-FG (bản '+rem.rev+').\n\nOK = tải dữ liệu từ Sheet về máy này (dữ liệu đang lưu trên trình duyệt này sẽ được thay).\nHủy = giữ dữ liệu trên máy này và ghi đè lên Sheet.')){applyRemote(rem.st,rem.rev)}
         else if(!ro){await push(true)}
