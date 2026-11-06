@@ -49,6 +49,7 @@ h3.sec{margin:36px 0 12px;font-size:1.25rem;font-weight:700;letter-spacing:-.02e
 .ring-card .s{font-size:.85rem;color:var(--ink);margin-top:3px}
 .asg-wrap{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:4px 14px}
 .asg{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1.25fr);gap:8px;padding:9px 0;border-bottom:1px solid var(--line);align-items:start}
+.asg-dl{grid-column:1/-1;font-size:.8rem;color:var(--muted);background:var(--bg);border-radius:8px;padding:6px 9px;overflow-wrap:anywhere}
 .asg:last-child{border-bottom:0}
 .asg small{display:block;color:var(--muted);font-size:.78rem;overflow-wrap:anywhere;margin-top:2px}
 .asg .chip{white-space:normal}
@@ -279,6 +280,13 @@ function assignNhom(it){
 /* Phạm vi rà soát: chỉ 5 DN. 4 DN còn lại (GETFIT, KIM LONG, HƯỚNG VIỆT, TIẾN PHƯƠNG) không đưa vào hệ thống này; bản đầy đủ cũ được giữ 1 bản trên máy (rc_backup_scope9) để khôi phục khi cần */
 const KEEP_DN=['FG','FGI','HLI','BẢO AN','HLM'];
 let ASSIGN_FRESH=false;
+function asgDl(dn){
+  const L=typeof window.rcFgcDl==='function'?window.rcFgcDl(dn):null;
+  if(L===null)return '<div class="asg-dl">Pháp chế FGC: chưa tải (đăng nhập Google Sheet để xem)</div>';
+  if(!L.length)return '<div class="asg-dl">Pháp chế FGC: chưa ghi nhận điều lệ / phụ lục</div>';
+  const dd=L.filter(x=>/đầy đủ/i.test(x.loai)),pl=L.filter(x=>/phụ lục/i.test(x.loai)),hl=dd.filter(x=>/đang hiệu lực/i.test(x.st))[0];
+  return '<div class="asg-dl">Pháp chế FGC ghi nhận: '+dd.length+' bản điều lệ'+(hl?' (hiện hành: '+(hl.ngay?'bản ngày '+vdate(String(hl.ngay).slice(0,10)):esc(hl.ten))+')':'')+', '+pl.length+' phụ lục</div>';
+}
 function ensureScope(){
   if(S.scopeV===1)return false;
   ASSIGN_FRESH=true;
@@ -456,7 +464,7 @@ function vOverview(){
       const dn=cnt(rs,it=>it.status==='Đã đủ');
       const late=rs.length&&dn<rs.length&&a.due<TODAY;
       const days=Math.round((ts(TODAY)-ts(a.due))/86400000);
-      h+=`<div class="asg"><div><b>${esc(a.dn)}</b><small>${esc(NHOM_ASSIGN[a.nhom]||a.nhom)}</small></div><div>${esc(a.person)}<small>Hạn ${vdate(a.due)}</small></div><div>${late?`<span class="chip r">Quá hạn ${days} ngày</span>`:(rs.length&&dn===rs.length?'<span class="chip g">Hoàn tất</span>':'<span class="chip n">Trong hạn</span>')}<small>${dn}/${rs.length} mục đã đủ</small></div></div>`;
+      h+=`<div class="asg"><div><b>${esc(a.dn)}</b><small>${esc(NHOM_ASSIGN[a.nhom]||a.nhom)}</small></div><div>${esc(a.person)}<small>Hạn ${vdate(a.due)}</small></div><div>${late?`<span class="chip r">Quá hạn ${days} ngày</span>`:(rs.length&&dn===rs.length?'<span class="chip g">Hoàn tất</span>':'<span class="chip n">Trong hạn</span>')}<small>${dn}/${rs.length} mục đã đủ</small></div>${a.nhom==='dieule'?asgDl(a.dn):''}</div>`;
     });
     h+=`</div>`;
     h+=`<p class="note">Nguồn: bảng công việc Phòng Pháp chế. Hạn và người phụ trách được gán cho các mục Điều lệ và nhóm I (Hồ sơ doanh nghiệp) của 5 DN này; các nhóm II–VI chưa phân công.</p>`;
@@ -1142,16 +1150,18 @@ render();
   var e0=function(v){v=(v===undefined||v===null)?'':String(v).trim();return v==='§e'?'':v};
   var nz=function(x){return String(x||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/gi,'d').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()};
   var ALIAS={'fg':'fgc'};
-  var rows2obj=function(vals,keys){return (vals||[]).slice(1).map(function(r){var o={};keys.forEach(function(k,i){o[k]=e0(r[i])});return o}).filter(function(o){return o.code||o.name})};
+  var rows2obj=function(vals,keys){return (vals||[]).slice(1).map(function(r){var o={};keys.forEach(function(k,i){o[k]=e0(r[i])});return o}).filter(function(o){return o.code||o.name||o.ten})};
   async function loadFgc(){
     /* chỉ đọc các cột cần thiết, không đọc CCCD hay hồ sơ cá nhân */
-    var j=await api('/values:batchGet?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&ranges='+rng('prof_co')+'!A:J&ranges='+rng('prof_pos')+'!A:H');
+    var j=await api('/values:batchGet?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&ranges='+rng('prof_co')+'!A:J&ranges='+rng('prof_pos')+'!A:H&ranges='+rng('prof_dl')+'!A:H');
     var vr=j.valueRanges||[];
     var co=rows2obj(vr[0]&&vr[0].values,['id','code','name','msdn','lan','ngay','vdl','vtg','menhgia','addr']);
     var pos=rows2obj(vr[1]&&vr[1].values,['id','name','co','role','title','from','to','uq']).filter(function(p){return p.name});
-    FGC={at:new Date().toISOString(),co:co,pos:pos};
+    var cl=function(v){return v==='§e'?'':v};
+    var dl=rows2obj(vr[2]&&vr[2].values,['id','co','loai','ten','lan','ngay','cc','st']).filter(function(x){return x.ten}).map(function(x){var o={};Object.keys(x).forEach(function(k){o[k]=cl(x[k])});return o});
+    FGC={at:new Date().toISOString(),co:co,pos:pos,dl:dl};
     try{localStorage.setItem(K_FGC,JSON.stringify(FGC))}catch(e){}
-    try{if(typeof tab!=='undefined'&&tab==='dn')render()}catch(e){}
+    try{if(typeof tab!=='undefined'&&(tab==='dn'||tab==='overview'))render()}catch(e){}
   }
   var fmtD=function(v){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(v||'');return m?m[3]+'/'+m[2]+'/'+m[1]:(v||'')};
   var fmtM=function(v){var n=+v;if(!n)return '';if(n%1e9===0)return (n/1e9).toLocaleString('vi-VN')+' tỷ đồng';return n.toLocaleString('vi-VN')+' đồng'};
@@ -1165,6 +1175,11 @@ render();
     var ndpl=cur.filter(function(p){var k=nz(p.name);if(seen[k])return false;seen[k]=1;return true}).map(function(p){return p.name+(p.title&&p.title!=='Người đại diện theo pháp luật'?' ('+p.title+')':'')+(p.from?' – từ '+fmtD(p.from):'')});
     var uq=ps.filter(function(p){return p.role==='Người được ủy quyền'&&!p.to}).map(function(p){return p.name+(p.title?' ('+p.title+')':'')});
     return {ndpl:ndpl,uq:uq}}
+  window.rcFgcDl=function(dnName){
+    if(!FGC||!FGC.dl)return null;
+    var d=S.dn.find(function(x){return x.name===dnName});var c=d&&matchCo(d);if(!c)return [];
+    return FGC.dl.filter(function(x){return nz(x.co)===nz(c.code)});
+  };
   window.rcFgcBlock=function(){
     var E=window.esc||function(x){return String(x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
     var h='<div id="rc-fgc"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:22px 0 6px"><h3 style="margin:0;font-size:1.05rem">Thông tin pháp nhân &amp; người đại diện (từ Hồ sơ công ty – Pháp chế FGC)</h3><button class="btn" id="rc-fgc-refresh">Làm mới</button></div>';
@@ -1175,11 +1190,17 @@ render();
       return '<tr><td><b>'+E(d.name)+'</b><div class="muted">'+E(c.code)+'</div></td><td>'+E(c.msdn)+'</td><td>'+E(fmtM(c.vdl))+'</td><td style="min-width:220px">'+E(c.addr)+'</td><td>'+(c.lan?'Lần '+E(c.lan):'')+(c.ngay?'<div class="muted">'+E(fmtD(c.ngay))+'</div>':'')+'</td><td style="min-width:180px">'+(p.ndpl.length?p.ndpl.map(E).join('<br>'):'<span class="muted">Chưa ghi</span>')+'</td><td style="min-width:160px">'+(p.uq.length?p.uq.map(E).join('<br>'):'<span class="muted">–</span>')+'</td></tr>'}).join('');
     var extra=FGC.co.filter(function(c){return !used[c.id||c.code]}).map(function(c){return c.code});
     h+='<div class="tw"><table><thead><tr><th>Doanh nghiệp</th><th>Mã số DN</th><th>Vốn điều lệ</th><th>Trụ sở chính</th><th>ĐKDN thay đổi gần nhất</th><th>Người đại diện theo pháp luật</th><th>Người được ủy quyền</th></tr></thead><tbody>'+body+'</tbody></table></div>';
+    if(FGC.dl){
+      var dr=[];S.dn.forEach(function(d){(window.rcFgcDl(d.name)||[]).forEach(function(x){dr.push('<tr><td><b>'+E(d.name)+'</b></td><td>'+E(x.loai)+'</td><td style="min-width:220px">'+E(x.ten)+'</td><td>'+E(fmtD(x.ngay))+'</td><td>'+E(x.st)+'</td><td style="min-width:220px">'+E(x.cc)+'</td></tr>')})});
+      h+='<h3 style="margin:22px 0 6px;font-size:1.05rem">Điều lệ và phụ lục đã ghi nhận ở Pháp chế FGC</h3><div class="tw"><table><thead><tr><th>Doanh nghiệp</th><th>Loại</th><th>Tên văn bản</th><th>Ngày</th><th>Hiệu lực</th><th>Căn cứ</th></tr></thead><tbody>'+(dr.join('')||'<tr><td colspan="6" class="muted">Chưa có bản ghi nào</td></tr>')+'</tbody></table></div><p class="note">Chỉ xem. Việc “Đã đủ” ở các mục Điều lệ của Recheck do người kiểm kê xác nhận sau khi đối chiếu bản thực tế.</p>';
+    }
     h+='<p class="note">Nguồn: tab prof_co, prof_pos của Google Sheet Pháp chế FGC, cập nhật lúc '+E(new Date(FGC.at).toLocaleString('vi-VN'))+'. Chỉ xem; người đại diện lấy theo bản ghi NĐDPL có ngày bắt đầu mới nhất.'+(extra.length?' Có trong Hồ sơ công ty nhưng chưa có trong danh mục rà soát này: <b>'+extra.map(E).join(', ')+'</b>.':'')+'</p></div>';
     return h};
   document.addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('#rc-fgc-refresh');if(!b)return;
     (async function(){try{status('Đang đọc Hồ sơ công ty…');await auth(true);await loadFgc();status('Đã làm mới thông tin pháp nhân lúc '+now())}catch(e){status(e.message,true)}})()});
 
+  /* dữ liệu Pháp chế đã lưu trên máy: vẽ lại để các dòng “Pháp chế FGC ghi nhận” hiện ngay */
+  if(FGC){try{render()}catch(e){}}
   /* tự kết nối khi đã có phiên đăng nhập còn hạn (chung với app Pháp chế) */
   if(cachedTok())init(false);else status('Chưa đăng nhập Google');
 })();
