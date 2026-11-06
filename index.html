@@ -865,6 +865,8 @@ render();
     <button class="btn" id="rc-b-pull">Tải từ Sheet về máy này</button>
     <button class="btn dng" id="rc-b-force">Ghi đè Sheet bằng dữ liệu máy này</button>
     <button class="btn" id="rc-b-open">Mở Google Sheet</button>
+    <button class="btn" id="rc-b-log">Lịch sử thay đổi (20 lần gần nhất)</button>
+    <div id="rc-log-box" class="muted" style="font-size:.8rem;overflow-wrap:anywhere;max-height:30vh;overflow:auto" hidden></div>
     <button class="btn" id="rc-b-login">Đăng nhập lại tài khoản Google</button>
     <button class="btn" id="rc-b-close">Đóng</button>
   </div>
@@ -874,7 +876,7 @@ render();
   'use strict';
   /* Cấu hình kết nối: ưu tiên cấu hình app Pháp chế đã lưu trên trình duyệt (cùng domain github.io nên dùng chung đăng nhập) */
   var DEF={id:'1XVZkXQCXjx1n6SGpoIohoOeNZwYjqiei0VKzRzSEYcs',id2:'1y1MDAaqnF9G314tiPc-wZGCR6wwuIJ_jWx-S__azBTw',client:'150478472111-bca3d3kqcko9g2ad3ktln427h1nf6c58.apps.googleusercontent.com'};
-  var TAB={items:'rc_items',cfg:'rc_cfg',meta:'rc_meta'},CH=40000,SCHEMA='recheck v1';
+  var TAB={items:'rc_items',cfg:'rc_cfg',meta:'rc_meta',log:'rc_log'},CH=40000,SCHEMA='recheck v1';
   var K_SH='phapche_sh_v1',K_TOK='phapche_sh_tok2',K_MAIL='phapche_sh_mail',K_REV='rc_sh_rev',K_DIRTY='rc_sh_dirty';
   var CFG=(function(){try{var o=JSON.parse(localStorage.getItem(K_SH)||'null');if(o&&o.id&&o.client)return{id:o.id,id2:o.id2||'',client:o.client}}catch(e){}return DEF})();
   var tok=null,exp=0,rev=null,ro=false,busy=false,applying=false,connected=false,mail='',timer=null,authP=null;
@@ -966,7 +968,7 @@ render();
     var cur=by[TAB.meta]?await getRev():0;
     if(!force&&rev!==null&&cur!==rev)throw new Error('conflict');
     var need={},reqs=[];
-    need[TAB.items]=[P.items.length+50,Math.max(P.items[0].length,10)];need[TAB.cfg]=[P.cfg.length+20,3];need[TAB.meta]=[10,3];
+    need[TAB.items]=[P.items.length+50,Math.max(P.items[0].length,10)];need[TAB.cfg]=[P.cfg.length+20,3];need[TAB.meta]=[10,3];if(!by[TAB.log])need[TAB.log]=[500,8];
     Object.keys(need).forEach(function(t){
       if(!by[t])reqs.push({addSheet:{properties:{title:t,gridProperties:{rowCount:need[t][0],columnCount:need[t][1]}}}});
       else if(by[t].rows<need[t][0]||by[t].cols<need[t][1])reqs.push({updateSheetProperties:{properties:{sheetId:by[t].id,gridProperties:{rowCount:Math.max(by[t].rows,need[t][0]),columnCount:Math.max(by[t].cols,need[t][1])}},fields:'gridProperties.rowCount,gridProperties.columnCount'}})});
@@ -983,6 +985,13 @@ render();
       if(x[1]<g.rows)clear.push("'"+x[0]+"'!A"+(x[1]+1)+':'+colL(g.cols)+g.rows);
       if(x[2]<g.cols&&x[1]>0)clear.push("'"+x[0]+"'!"+colL(x[2]+1)+'1:'+colL(g.cols)+x[1])});
     if(clear.length)await api('/values:batchClear',{method:'POST',body:JSON.stringify({ranges:clear})});
+    /* nhật ký thay đổi (chỉ thêm dòng; không ghi nội dung hồ sơ); lỗi ghi log không làm hỏng việc đồng bộ */
+    try{
+      var who='';try{who=await getMail()}catch(e){}
+      var nIt=(S.items||[]).length;
+      var hdr=[];if(!by[TAB.log])hdr=[['Thời điểm','Email','App','Hành động','Rev trước','Rev sau','Số mục','Ghi chú']];
+      await api('/values/'+rng(TAB.log)+'!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{method:'POST',body:JSON.stringify({values:hdr.concat([[new Date().toISOString(),who,'Recheck',(force?(cur?'Ghi đè':'Khởi tạo'):'Đồng bộ'),cur,nr,nIt,'']])})});
+    }catch(e){}
     return nr;
   }
 
@@ -1047,7 +1056,7 @@ render();
 
   var dlg=$$('rc-dlg');
   function openDlg(){
-    $$('rc-dlg-info').textContent=(mail?'Tài khoản: '+mail+'. ':'')+(ro?'Chế độ chỉ xem. ':'')+'Dữ liệu ghi vào các tab rc_items, rc_cfg, rc_meta của Google Sheet Pháp chế FGC; không ảnh hưởng dữ liệu của app Pháp chế.';
+    $$('rc-dlg-info').textContent=(mail?'Tài khoản: '+mail+'. ':'')+(ro?'Chế độ chỉ xem. ':'')+'Dữ liệu ghi vào các tab rc_items, rc_cfg, rc_meta, rc_log (nhật ký) của Google Sheet Pháp chế FGC; không ảnh hưởng dữ liệu của app Pháp chế.';
     ['rc-b-sync','rc-b-force'].forEach(function(i){$$(i).disabled=ro});
     if(typeof dlg.showModal==='function')dlg.showModal();else dlg.setAttribute('open','')}
   btn.onclick=function(){if(!connected){init(true)}else openDlg()};
@@ -1058,6 +1067,14 @@ render();
       if(getDirty()&&!confirm('Máy này có thay đổi chưa ghi lên Sheet. Tải về sẽ làm mất các thay đổi đó. Tiếp tục?'))return;
       applyRemote(rem.st,rem.rev)}catch(e){status(e.message,true)}};
   $$('rc-b-force').onclick=async function(){dlg.close();if(!confirm('Ghi đè toàn bộ dữ liệu Recheck trên Google Sheet bằng dữ liệu của máy này?'))return;await push(true)};
+  $$('rc-b-log').onclick=async function(){
+    var bx=$$('rc-log-box');bx.hidden=false;bx.textContent='Đang tải…';
+    try{var j=await api('/values/'+rng(TAB.log)+'!A:H').catch(function(e){if(/400/.test(e.message))return{};throw e});
+      var v=(j.values||[]).slice(1).slice(-20).reverse();
+      if(!v.length){bx.textContent='Chưa có lịch sử (sẽ ghi từ lần đồng bộ tới).';return}
+      bx.innerHTML=v.map(function(r){var d=new Date(r[0]);var t=isNaN(d)?esc(r[0]):d.toLocaleString('vi-VN');
+        return '<div style="padding:3px 0;border-bottom:1px solid #eee">'+esc(t)+' · '+esc(r[1]||'?')+' · '+esc(r[2]||'')+' · '+esc(r[3]||'')+' · bản '+esc(r[4])+'→'+esc(r[5])+' · '+esc(r[6])+' mục</div>'}).join('')}
+    catch(e){bx.textContent=e.message}};
   $$('rc-b-open').onclick=function(){window.open('https://docs.google.com/spreadsheets/d/'+CFG.id+'/edit','_blank','noopener')};
   $$('rc-b-login').onclick=async function(){dlg.close();try{await auth(true,true);mail='';connected=false;await init(true)}catch(e){status(e.message,true)}};
 
